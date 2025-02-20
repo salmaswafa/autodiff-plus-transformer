@@ -13,6 +13,7 @@ def check_evaluator_output(
     expected_outputs: List[torch.Tensor],
 ) -> None:
     output_values = evaluator.run(input_values)
+
     assert len(output_values) == len(expected_outputs)
     for output_val, expected_val in zip(output_values, expected_outputs):
         torch.testing.assert_close(output_val, expected_val, atol=1e-4, rtol=1e-4)

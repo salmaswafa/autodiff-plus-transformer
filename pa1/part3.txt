@@ -1,0 +1,37 @@
+#Intuition Behind Fused Operators:#
+
+Fused operations are a great way to increase efficiency of ML systems. Combining operations together into one (fusion) reduces the 
+intermediate values stored between operations. This reduces the consumed memory and reduces the memory reads/ writes so also decreasing latency.
+These multiple ops become a single kernel that does the combined operations in one go, so there is less overhead because less kernels
+are launched in total.
+Overall, it leads to faster execution (less latency) and less memory usage.
+
+A very common usage for fused operations is fusing the activation layer to the previous operation (e.g. softmax to matmul). If they are
+unfused, the activation layer has to wait for the previous operation to write its results to memory before it can read the values and
+get executed. Since activation functions/ layers require a relatively smaller compute, the unfusion here causes a performance setback.
+
+#Why Fused Operators Improve Efficiency:#
+
+It reduces memory usage or bandwidth and latency, because the intermediate values between the previously unfused operations no longer get stored 
+to the memory and then read again. This reduces data movement, reads/ writes, and latency.
+
+There are less kernel launches. This is because multiple operations now have one kernel only instead of multiple when they were unfused.
+This causes a significant improvement on latency as well.
+
+#Potential Future Improvements:#
+
+In our case, the forward functions are already using torch which is optimized, so the speedup is not very significant there. But, because the 
+gradient functions of our ops are less optimized, we can see a bigger speedup. 
+Therefore, we can definitely make the fused gradients more optimized. Instead of doing both operations sequentially, we can eliminate any
+redundant steps along the way.
+
+Also, we should take into account the whole computation graph when fusing to make sure that we are making the best fusions and increasing
+the efficiency as much as possible.
+
+Automatic fusion is also another area, so after we write the computational graph, it could be scanned and operators can be fused automaticaly.
+
+We see a lot of patterns in our computational graphs, so we can focus on the commonly fused operations and optimize these as much as we can. 
+If need be, we can even create hardware for these frequently-occurring fused operations.
+
+
+

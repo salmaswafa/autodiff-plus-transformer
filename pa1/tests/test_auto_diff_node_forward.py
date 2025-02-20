@@ -122,6 +122,21 @@ def test_layernorm():
         torch.tensor([[-1.224745, 0.0, 1.224745], [-1.224745, 0.0, 1.224745]], dtype=torch.float32)
     )
 
+def test_layernorm_3d():
+    """Test LayerNorm forward pass with 3D input"""
+    x = ad.Variable("x")
+    y = ad.layernorm(x, normalized_shape=[3])  # Normalize across last dimension
+
+    # Example 3D input: [batch, sequence length, feature_dim]
+    x_val = torch.tensor([
+        [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]],  # First batch
+        [[7.0, 8.0, 9.0], [10.0, 11.0, 12.0]]  # Second batch
+    ], dtype=torch.float32)
+
+    expected_output = torch.nn.functional.layer_norm(x_val, normalized_shape=[3])
+
+    check_compute_output(y, [x_val], expected_output)
+
 
 def test_relu():
     x = ad.Variable("x")
@@ -166,6 +181,54 @@ def test_broadcast():
         ])
     )
 
+def test_sqrt():
+    x = ad.Variable("x")
+    y = ad.sqrt(x)
+
+    check_compute_output(
+        y,
+        [torch.tensor([[4.0, 9.0], [16.0, 25.0]], dtype=torch.float32)],
+        torch.tensor([[2.0, 3.0], [4.0, 5.0]], dtype=torch.float32)
+    )
+
+def test_power():
+    x = ad.Variable("x")
+    y = ad.power(x, 2)
+
+    check_compute_output(
+        y,
+        [torch.tensor([[1.0, 2.0], [3.0, 4.0]], dtype=torch.float32)],
+        torch.tensor([[1.0, 4.0], [9.0, 16.0]], dtype=torch.float32)
+    )
+    
+# TODO: double check: added by me
+# TODO: modify
+def test_mean():
+    x = ad.Variable("x")
+    y = ad.mean(x, dim=(1,), keepdim=False)
+
+    check_compute_output(
+        y,
+        [
+            torch.tensor([[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]])
+        ],
+        torch.tensor([2.5, 6.5]),  # Mean along dim=1
+    )
+
+def test_softmax_3d():
+    """Test Softmax forward pass with 3D input"""
+    x = ad.Variable("x")
+    y = ad.softmax(x, dim=-1)  # Softmax along the last dimension
+
+    x_val = torch.tensor([
+        [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]],  # First batch
+        [[7.0, 8.0, 9.0], [10.0, 11.0, 12.0]]  # Second batch
+    ], dtype=torch.float32)
+
+    expected_output = torch.nn.functional.softmax(x_val, dim=-1)
+
+    check_compute_output(y, [x_val], expected_output)
+
 
 if __name__ == "__main__":
     test_mul()
@@ -179,3 +242,9 @@ if __name__ == "__main__":
     test_matmul_3d()
     test_transpose()
     test_broadcast()
+    test_power()
+    test_sqrt()
+    test_mean()
+    test_layernorm_3d()
+    test_softmax_3d()
+    # mean

@@ -164,7 +164,38 @@ def test_layernorm():
                 [1.2248, -2.4495,  1.2246],
                 [2.0412, -4.0825, 2.0413]
             ], dtype=torch.float32)
-        ]
+        ],
+    )
+    
+def test_layernorm_3d():
+    """Test LayerNorm backward pass with 3D input"""
+    x = ad.Variable("x")
+    y = ad.layernorm(x, normalized_shape=[3])
+    y_grad = ad.Variable("y_grad")
+    x_grad = y.op.gradient(y, y_grad)[0]
+
+    evaluator = ad.Evaluator(eval_nodes=[x_grad])
+
+    x_val = torch.tensor([
+        [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]],  
+        [[7.0, 8.0, 9.0], [10.0, 11.0, 12.0]]  
+    ], dtype=torch.float32)
+
+    y_grad_val = torch.tensor([
+        [[12, 4, 2], [-3, -5, 3]],
+        [[1, -1, 0], [2, -2, 1]]
+    ], dtype=torch.float32)
+
+    # Compute expected gradients using PyTorch autograd
+    x_val.requires_grad_(True)
+    y_torch = torch.nn.functional.layer_norm(x_val, normalized_shape=[3])
+    y_torch.backward(y_grad_val)
+    expected_x_grad = x_val.grad  # PyTorch computed gradient
+
+    check_evaluator_output(
+        evaluator,
+        input_values={x: x_val, y_grad: y_grad_val},
+        expected_outputs=[expected_x_grad]
     )
 
 def test_relu():
@@ -239,12 +270,124 @@ def test_broadcast():
         expected_outputs=[torch.tensor([[8.0, 10.0], [12.0, 14.0], [16.0, 18.0]])]
     )
 
+def test_sqrt():
+    x = ad.Variable("x")
+    y = ad.sqrt(x)
+    y_grad = ad.Variable("y_grad")
+    x_grad = y.op.gradient(y, y_grad)[0]
+    evaluator = ad.Evaluator(eval_nodes=[x_grad])
+
+    x_val = torch.tensor([[4.0, 9.0], [16.0, 25.0]])
+    y_grad_val = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
+
+    check_evaluator_output(
+        evaluator,
+        input_values={x: x_val, y_grad: y_grad_val},
+        expected_outputs=[torch.tensor([[0.25, 0.33333], [0.375, 0.4]])]
+    )
+
+def test_power():
+    x = ad.Variable("x")
+    y = ad.power(x, 2)
+    y_grad = ad.Variable("y_grad")
+    x_grad = y.op.gradient(y, y_grad)[0]
+    evaluator = ad.Evaluator(eval_nodes=[x_grad])
+
+    x_val = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
+    y_grad_val = torch.tensor([[1.0, 1.0], [1.0, 1.0]])
+
+    check_evaluator_output(
+        evaluator,
+        input_values={x: x_val, y_grad: y_grad_val},
+        expected_outputs=[torch.tensor([[2.0, 4.0], [6.0, 8.0]])]
+    )
+    
+# TODO: double check: added by me
+# TODO: modify
+# def test_mean2():
+#     x = ad.Variable("x")
+#     y = ad.mean(x, dim=(1,), keepdim=False)
+#     y_grad = ad.Variable("y_grad")
+#     x_grad = y.op.gradient(y, y_grad)[0]
+
+#     evaluator = ad.Evaluator(eval_nodes=[x_grad])
+
+#     check_evaluator_output(
+#         evaluator,
+#         input_values={
+#             x: torch.tensor([[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]]),
+#             y_grad: torch.tensor([0.1, -0.2]),
+#         },
+#         expected_outputs=[
+#             torch.tensor([[0.025, 0.025, 0.025, 0.025], [-0.05, -0.05, -0.05, -0.05]])
+#         ],
+#     )
+
+def test_mean():
+    x = ad.Variable("x")
+    y = ad.mean(x, dim=(0, 1), keepdim=False)
+
+    x_grad = ad.gradients(output_node=y, nodes=[x])[0]
+
+    evaluator = ad.Evaluator(eval_nodes=[y, x_grad])
+    x_value = torch.tensor([[1.0, 2.0], [3.0, 4.0]], dtype=torch.float32)
+
+    results = evaluator.run(input_values={x: x_value})
+
+    print("Output (y):", results[0])
+    print("Gradient (x_grad):", results[1])
+
+# test_mean_gradient()
+
+def test_softmax_3d():
+    """Test Softmax backward pass with 3D input"""
+    x = ad.Variable("x")
+    y = ad.softmax(x, dim=-1)
+    y_grad = ad.Variable("y_grad")
+    x_grad = y.op.gradient(y, y_grad)[0]
+
+    evaluator = ad.Evaluator(eval_nodes=[x_grad])
+
+    x_val = torch.tensor([
+        [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]],
+        [[7.0, 8.0, 9.0], [10.0, 11.0, 12.0]]
+    ], dtype=torch.float32)
+
+    y_grad_val = torch.tensor([
+        [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]],
+        [[0.7, 0.8, 0.9], [1.0, 1.1, 1.2]]
+    ], dtype=torch.float32)
+
+    # Compute expected gradient using PyTorch autograd
+    x_val.requires_grad_(True)
+    y_torch = torch.nn.functional.softmax(x_val, dim=-1)
+    y_torch.backward(y_grad_val)
+    expected_x_grad = x_val.grad  # PyTorch computed gradient
+
+    check_evaluator_output(
+        evaluator,
+        input_values={x: x_val, y_grad: y_grad_val},
+        expected_outputs=[expected_x_grad]
+    )
+
+
 if __name__ == "__main__":
     test_mul()
     test_div()
-    test_layernorm()
+    test_div_by_const()
     test_relu() 
     test_softmax()
     test_matmul()
     test_transpose()
     test_broadcast()
+    test_sqrt()
+    test_power()
+    
+    test_layernorm()
+    test_mean()
+    # test_mean2()
+    test_matmul_3d()
+    # test_exp()
+    test_layernorm_3d()
+    test_softmax_3d()
+    # mean
